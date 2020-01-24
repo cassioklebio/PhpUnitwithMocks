@@ -1,12 +1,11 @@
 --TEST--
-phpunit --testdox-html php://stdout BankAccountTest ../../_files/BankAccountTest.php
+phpunit --testdox-html php://stdout ../../_files/BankAccountTest.php
 --FILE--
 <?php declare(strict_types=1);
 $arguments = [
     '--no-configuration',
     '--testdox-html',
     'php://stdout',
-    'BankAccountTest',
     \realpath(__DIR__ . '/../../_files/BankAccountTest.php'),
 ];
 \array_splice($_SERVER['argv'], 1, count($arguments), $arguments);
@@ -46,7 +45,7 @@ PHPUnit %s by Sebastian Bergmann and contributors.
     </head>
     <body>
 
-        <h2 id="BankAccountTest">BankAccount</h2>
+        <h2 id="BankAccountTest">Bank Account</h2>
         <ul>
 ...                                                                 3 / 3 (100%)            <li style="color: #555753;">✓ Balance is initially zero</li>
             <li style="color: #555753;">✓ Balance cannot become negative</li>

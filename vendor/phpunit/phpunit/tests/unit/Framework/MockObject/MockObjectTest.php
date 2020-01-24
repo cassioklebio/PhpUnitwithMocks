@@ -491,15 +491,6 @@ final class MockObjectTest extends TestCase
         $this->assertInstanceOf(Traversable::class, $mock);
     }
 
-    public function testMultipleInterfacesCanBeMockedInSingleObject(): void
-    {
-        $mock = $this->getMockBuilder([AnInterface::class, AnotherInterface::class])
-                     ->getMock();
-
-        $this->assertInstanceOf(AnInterface::class, $mock);
-        $this->assertInstanceOf(AnotherInterface::class, $mock);
-    }
-
     /**
      * @testdox getMockForTrait()
      */
@@ -670,7 +661,7 @@ final class MockObjectTest extends TestCase
             $this->fail('Expected exception');
         } catch (ExpectationFailedException $e) {
             $this->assertSame(
-                "Expectation failed for method name is equal to 'right' when invoked 1 time(s).\n" .
+                "Expectation failed for method name is \"right\" when invoked 1 time(s).\n" .
                 'Method was expected to be called 1 times, actually called 0 times.' . "\n",
                 $e->getMessage()
             );
@@ -695,7 +686,7 @@ final class MockObjectTest extends TestCase
             $this->fail('Expected exception');
         } catch (ExpectationFailedException $e) {
             $this->assertSame(
-                "Expectation failed for method name is equal to 'right' when invoked 1 time(s).\n" .
+                "Expectation failed for method name is \"right\" when invoked 1 time(s).\n" .
                 'Method was expected to be called 1 times, actually called 0 times.' . "\n",
                 $e->getMessage()
             );
@@ -718,7 +709,7 @@ final class MockObjectTest extends TestCase
             $mock->right(['second']);
         } catch (ExpectationFailedException $e) {
             $this->assertSame(
-                "Expectation failed for method name is equal to 'right' when invoked 1 time(s)\n" .
+                "Expectation failed for method name is \"right\" when invoked 1 time(s)\n" .
                 'Parameter 0 for invocation SomeClass::right(Array (...)) does not match expected value.' . "\n" .
                 'Failed asserting that two arrays are equal.',
                 $e->getMessage()
@@ -732,7 +723,7 @@ final class MockObjectTest extends TestCase
 //            $this->fail('Expected exception');
         } catch (ExpectationFailedException $e) {
             $this->assertSame(
-                "Expectation failed for method name is equal to 'right' when invoked 1 time(s).\n" .
+                "Expectation failed for method name is \"right\" when invoked 1 time(s).\n" .
                 'Parameter 0 for invocation SomeClass::right(Array (...)) does not match expected value.' . "\n" .
                 'Failed asserting that two arrays are equal.' . "\n" .
                 '--- Expected' . "\n" .
@@ -811,7 +802,7 @@ final class MockObjectTest extends TestCase
             $this->fail('Expected exception');
         } catch (ExpectationFailedException $e) {
             $this->assertSame(
-                "Expectation failed for method name is equal to 'right' when invoked 1 time(s)\n" .
+                "Expectation failed for method name is \"right\" when invoked 1 time(s)\n" .
                 'Parameter count for invocation SomeClass::right() is too low.' . "\n" .
                 'To allow 0 or more parameters with any value, omit ->with() or use ->withAnyParameters() instead.',
                 $e->getMessage()
@@ -1029,9 +1020,6 @@ final class MockObjectTest extends TestCase
             'Traversable'                   => ['Traversable'],
             '\Traversable'                  => ['\Traversable'],
             'TraversableMockTestInterface'  => ['TraversableMockTestInterface'],
-            "['Traversable']"               => [['Traversable']],
-            "['Iterator', 'Traversable']"   => [['Iterator', 'Traversable']],
-            "['\Iterator', '\Traversable']" => [['\Iterator', '\Traversable']],
         ];
     }
 
@@ -1120,11 +1108,18 @@ final class MockObjectTest extends TestCase
         $this->assertInstanceOf(stdClass::class, $stub->methodWithObjectReturnTypeDeclaration());
     }
 
-    public function testGetObjectForTrait(): void
+    public function testTraitCanBeDoubled(): void
     {
         $object = $this->getObjectForTrait(ExampleTrait::class);
 
         $this->assertSame('ohHai', $object->ohHai());
+    }
+
+    public function testTraitWithConstructorCanBeDoubled(): void
+    {
+        $object = $this->getObjectForTrait(TraitWithConstructor::class, ['value']);
+
+        $this->assertSame('value', $object->value());
     }
 
     private function resetMockObjects(): void

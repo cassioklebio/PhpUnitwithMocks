@@ -64,4 +64,22 @@ EOF
 
         $this->fail();
     }
+
+    public function testConstraintArrayHasKey0(): void
+    {
+        $constraint = new ArrayHasKey(0);
+
+        try {
+            $constraint->evaluate(0, '');
+        } catch (ExpectationFailedException  $e) {
+            $this->assertEquals(
+                <<<EOF
+Failed asserting that an array has the key 0.
+
+EOF
+                ,
+                TestFailure::exceptionToString($e)
+            );
+        }
+    }
 }

@@ -160,6 +160,17 @@ final class TestSuiteTest extends TestCase
         $this->assertEquals(1, $this->result->skippedCount());
     }
 
+    public function testItErrorsOnlyOnceOnHookException(): void
+    {
+        $suite = new TestSuite(\TestCaseWithExceptionInHook::class);
+
+        $suite->run($this->result);
+
+        $this->assertEquals(2, $this->result->count());
+        $this->assertEquals(1, $this->result->errorCount());
+        $this->assertEquals(1, $this->result->skippedCount());
+    }
+
     public function testTestDataProviderDependency(): void
     {
         $suite = new TestSuite(\DataProviderDependencyTest::class);
@@ -207,31 +218,6 @@ final class TestSuiteTest extends TestCase
         $result = $suite->run();
 
         $this->assertCount(2, $result);
-    }
-
-    public function testCreateTestForConstructorlessTestClass(): void
-    {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('No valid test provided.');
-
-        $reflection = $this->getMockBuilder(\ReflectionClass::class)
-            ->setConstructorArgs([$this])
-            ->getMock();
-
-        $reflection->expects($this->once())
-            ->method('getConstructor')
-            ->willReturn(null);
-        $reflection->expects($this->once())
-            ->method('isInstantiable')
-            ->willReturn(true);
-        $reflection->expects($this->once())
-            ->method('getName')
-            ->willReturn(__CLASS__);
-
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('No valid test provided.');
-
-        TestSuite::createTest($reflection, 'TestForConstructorlessTestClass');
     }
 
     /**

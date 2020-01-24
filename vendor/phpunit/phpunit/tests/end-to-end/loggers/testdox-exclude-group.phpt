@@ -1,5 +1,5 @@
 --TEST--
-phpunit --testdox-text php://stdout --testdox-exclude-group one TestDoxGroupTest ../../_files/TestDoxGroupTest.php
+phpunit --testdox-text php://stdout --testdox-exclude-group one ../../_files/TestDoxGroupTest.php
 --FILE--
 <?php declare(strict_types=1);
 $arguments = [
@@ -8,7 +8,6 @@ $arguments = [
     'php://stdout',
     '--testdox-exclude-group',
     'one',
-    'TestDoxGroupTest',
     \realpath(__DIR__ . '/_files/TestDoxGroupTest.php'),
 ];
 \array_splice($_SERVER['argv'], 1, count($arguments), $arguments);
@@ -18,7 +17,7 @@ PHPUnit\TextUI\Command::main();
 --EXPECTF--
 PHPUnit %s by Sebastian Bergmann and contributors.
 
-.DoxGroup
+.Dox Group
 .                                                                  2 / 2 (100%) [x] Two
 
 

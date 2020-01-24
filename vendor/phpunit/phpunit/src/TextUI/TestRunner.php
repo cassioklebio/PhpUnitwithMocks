@@ -9,9 +9,6 @@
  */
 namespace PHPUnit\TextUI;
 
-use PHPUnit\Framework\Error\Deprecated;
-use PHPUnit\Framework\Error\Notice;
-use PHPUnit\Framework\Error\Warning;
 use PHPUnit\Framework\Exception;
 use PHPUnit\Framework\Test;
 use PHPUnit\Framework\TestCase;
@@ -45,7 +42,6 @@ use PHPUnit\Util\TestDox\HtmlResultPrinter;
 use PHPUnit\Util\TestDox\TextResultPrinter;
 use PHPUnit\Util\TestDox\XmlResultPrinter;
 use PHPUnit\Util\XdebugFilterScriptGenerator;
-use ReflectionClass;
 use SebastianBergmann\CodeCoverage\CodeCoverage;
 use SebastianBergmann\CodeCoverage\Exception as CodeCoverageException;
 use SebastianBergmann\CodeCoverage\Filter as CodeCoverageFilter;
@@ -58,6 +54,7 @@ use SebastianBergmann\CodeCoverage\Report\Xml\Facade as XmlReport;
 use SebastianBergmann\Comparator\Comparator;
 use SebastianBergmann\Environment\Runtime;
 use SebastianBergmann\Invoker\Invoker;
+use SebastianBergmann\Timer\Timer;
 
 /**
  * @internal This class is not covered by the backward compatibility promise for PHPUnit
@@ -86,7 +83,7 @@ final class TestRunner extends BaseTestRunner
     private $loader;
 
     /**
-     * @var ResultPrinter
+     * @var Printer&TestListener
      */
     private $printer;
 
@@ -119,9 +116,6 @@ final class TestRunner extends BaseTestRunner
     /**
      * @throws \PHPUnit\Runner\Exception
      * @throws Exception
-     * @throws \InvalidArgumentException
-     * @throws \RuntimeException
-     * @throws \ReflectionException
      */
     public function doRun(Test $suite, array $arguments = [], bool $exit = true): TestResult
     {
@@ -225,20 +219,20 @@ final class TestRunner extends BaseTestRunner
 
         unset($listener, $listenerNeeded);
 
+        if (!$arguments['convertDeprecationsToExceptions']) {
+            $result->convertDeprecationsToExceptions(false);
+        }
+
         if (!$arguments['convertErrorsToExceptions']) {
             $result->convertErrorsToExceptions(false);
         }
 
-        if (!$arguments['convertDeprecationsToExceptions']) {
-            Deprecated::$enabled = false;
-        }
-
         if (!$arguments['convertNoticesToExceptions']) {
-            Notice::$enabled = false;
+            $result->convertNoticesToExceptions(false);
         }
 
         if (!$arguments['convertWarningsToExceptions']) {
-            Warning::$enabled = false;
+            $result->convertWarningsToExceptions(false);
         }
 
         if ($arguments['stopOnError']) {
@@ -275,12 +269,22 @@ final class TestRunner extends BaseTestRunner
 
         if ($this->printer === null) {
             if (isset($arguments['printer'])) {
-                if ($arguments['printer'] instanceof Printer) {
+                if ($arguments['printer'] instanceof Printer && $arguments['printer'] instanceof TestListener) {
                     $this->printer = $arguments['printer'];
                 } elseif (\is_string($arguments['printer']) && \class_exists($arguments['printer'], false)) {
-                    $class = new ReflectionClass($arguments['printer']);
+                    try {
+                        new \ReflectionClass($arguments['printer']);
+                        // @codeCoverageIgnoreStart
+                    } catch (\ReflectionException $e) {
+                        throw new Exception(
+                            $e->getMessage(),
+                            (int) $e->getCode(),
+                            $e
+                        );
+                    }
+                    // @codeCoverageIgnoreEnd
 
-                    if ($class->isSubclassOf(ResultPrinter::class)) {
+                    if (\is_subclass_of($arguments['printer'], ResultPrinter::class)) {
                         $this->printer = $this->createPrinter($arguments['printer'], $arguments);
                     }
                 }
@@ -325,6 +329,10 @@ final class TestRunner extends BaseTestRunner
                     $extension
                 );
             }
+        }
+
+        foreach ($arguments['warnings'] as $warning) {
+            $this->writeMessage('Warning', $warning);
         }
 
         if ($arguments['executionOrder'] === TestSuiteSorter::ORDER_RANDOMIZED) {
@@ -626,45 +634,37 @@ final class TestRunner extends BaseTestRunner
 
         if (isset($codeCoverage)) {
             if (isset($arguments['coverageClover'])) {
-                $this->printer->write(
-                    "\nGenerating code coverage report in Clover XML format ..."
-                );
+                $this->codeCoverageGenerationStart('Clover XML');
 
                 try {
                     $writer = new CloverReport;
                     $writer->process($codeCoverage, $arguments['coverageClover']);
 
-                    $this->printer->write(" done\n");
+                    $this->codeCoverageGenerationSucceeded();
+
                     unset($writer);
                 } catch (CodeCoverageException $e) {
-                    $this->printer->write(
-                        " failed\n" . $e->getMessage() . "\n"
-                    );
+                    $this->codeCoverageGenerationFailed($e);
                 }
             }
 
             if (isset($arguments['coverageCrap4J'])) {
-                $this->printer->write(
-                    "\nGenerating Crap4J report XML file ..."
-                );
+                $this->codeCoverageGenerationStart('Crap4J XML');
 
                 try {
                     $writer = new Crap4jReport($arguments['crap4jThreshold']);
                     $writer->process($codeCoverage, $arguments['coverageCrap4J']);
 
-                    $this->printer->write(" done\n");
+                    $this->codeCoverageGenerationSucceeded();
+
                     unset($writer);
                 } catch (CodeCoverageException $e) {
-                    $this->printer->write(
-                        " failed\n" . $e->getMessage() . "\n"
-                    );
+                    $this->codeCoverageGenerationFailed($e);
                 }
             }
 
             if (isset($arguments['coverageHtml'])) {
-                $this->printer->write(
-                    "\nGenerating code coverage report in HTML format ..."
-                );
+                $this->codeCoverageGenerationStart('HTML');
 
                 try {
                     $writer = new HtmlReport(
@@ -678,30 +678,26 @@ final class TestRunner extends BaseTestRunner
 
                     $writer->process($codeCoverage, $arguments['coverageHtml']);
 
-                    $this->printer->write(" done\n");
+                    $this->codeCoverageGenerationSucceeded();
+
                     unset($writer);
                 } catch (CodeCoverageException $e) {
-                    $this->printer->write(
-                        " failed\n" . $e->getMessage() . "\n"
-                    );
+                    $this->codeCoverageGenerationFailed($e);
                 }
             }
 
             if (isset($arguments['coveragePHP'])) {
-                $this->printer->write(
-                    "\nGenerating code coverage report in PHP format ..."
-                );
+                $this->codeCoverageGenerationStart('PHP');
 
                 try {
                     $writer = new PhpReport;
                     $writer->process($codeCoverage, $arguments['coveragePHP']);
 
-                    $this->printer->write(" done\n");
+                    $this->codeCoverageGenerationSucceeded();
+
                     unset($writer);
                 } catch (CodeCoverageException $e) {
-                    $this->printer->write(
-                        " failed\n" . $e->getMessage() . "\n"
-                    );
+                    $this->codeCoverageGenerationFailed($e);
                 }
             }
 
@@ -727,20 +723,17 @@ final class TestRunner extends BaseTestRunner
             }
 
             if (isset($arguments['coverageXml'])) {
-                $this->printer->write(
-                    "\nGenerating code coverage report in PHPUnit XML format ..."
-                );
+                $this->codeCoverageGenerationStart('PHPUnit XML');
 
                 try {
                     $writer = new XmlReport(Version::id());
                     $writer->process($codeCoverage, $arguments['coverageXml']);
 
-                    $this->printer->write(" done\n");
+                    $this->codeCoverageGenerationSucceeded();
+
                     unset($writer);
                 } catch (CodeCoverageException $e) {
-                    $this->printer->write(
-                        " failed\n" . $e->getMessage() . "\n"
-                    );
+                    $this->codeCoverageGenerationFailed($e);
                 }
             }
         }
@@ -1048,7 +1041,17 @@ final class TestRunner extends BaseTestRunner
                     );
                 }
 
-                $extensionClass = new ReflectionClass($extension['class']);
+                try {
+                    $extensionClass = new \ReflectionClass($extension['class']);
+                    // @codeCoverageIgnoreStart
+                } catch (\ReflectionException $e) {
+                    throw new Exception(
+                        $e->getMessage(),
+                        (int) $e->getCode(),
+                        $e
+                    );
+                }
+                // @codeCoverageIgnoreEnd
 
                 if (!$extensionClass->implementsInterface(Hook::class)) {
                     throw new Exception(
@@ -1086,7 +1089,17 @@ final class TestRunner extends BaseTestRunner
                     );
                 }
 
-                $listenerClass = new ReflectionClass($listener['class']);
+                try {
+                    $listenerClass = new \ReflectionClass($listener['class']);
+                    // @codeCoverageIgnoreStart
+                } catch (\ReflectionException $e) {
+                    throw new Exception(
+                        $e->getMessage(),
+                        (int) $e->getCode(),
+                        $e
+                    );
+                }
+                // @codeCoverageIgnoreEnd
 
                 if (!$listenerClass->implementsInterface(TestListener::class)) {
                     throw new Exception(
@@ -1239,10 +1252,6 @@ final class TestRunner extends BaseTestRunner
         $arguments['verbose']                                             = $arguments['verbose'] ?? false;
     }
 
-    /**
-     * @throws \ReflectionException
-     * @throws \InvalidArgumentException
-     */
     private function processSuiteFilters(TestSuite $suite, array $arguments): void
     {
         if (!$arguments['filter'] &&
@@ -1255,21 +1264,21 @@ final class TestRunner extends BaseTestRunner
 
         if (!empty($arguments['excludeGroups'])) {
             $filterFactory->addFilter(
-                new ReflectionClass(ExcludeGroupFilterIterator::class),
+                new \ReflectionClass(ExcludeGroupFilterIterator::class),
                 $arguments['excludeGroups']
             );
         }
 
         if (!empty($arguments['groups'])) {
             $filterFactory->addFilter(
-                new ReflectionClass(IncludeGroupFilterIterator::class),
+                new \ReflectionClass(IncludeGroupFilterIterator::class),
                 $arguments['groups']
             );
         }
 
         if ($arguments['filter']) {
             $filterFactory->addFilter(
-                new ReflectionClass(NameFilterIterator::class),
+                new \ReflectionClass(NameFilterIterator::class),
                 $arguments['filter']
             );
         }
@@ -1294,6 +1303,13 @@ final class TestRunner extends BaseTestRunner
         $this->messagePrinted = true;
     }
 
+    /**
+     * @template T as Printer
+     *
+     * @param class-string<T> $class
+     *
+     * @return T
+     */
     private function createPrinter(string $class, array $arguments): Printer
     {
         return new $class(
@@ -1303,6 +1319,39 @@ final class TestRunner extends BaseTestRunner
             $arguments['debug'],
             $arguments['columns'],
             $arguments['reverseList']
+        );
+    }
+
+    private function codeCoverageGenerationStart(string $format): void
+    {
+        $this->printer->write(
+            \sprintf(
+                "\nGenerating code coverage report in %s format ... ",
+                $format
+            )
+        );
+
+        Timer::start();
+    }
+
+    private function codeCoverageGenerationSucceeded(): void
+    {
+        $this->printer->write(
+            \sprintf(
+                "done [%s]\n",
+                Timer::secondsToTimeString(Timer::stop())
+            )
+        );
+    }
+
+    private function codeCoverageGenerationFailed(\Exception $e): void
+    {
+        $this->printer->write(
+            \sprintf(
+                "failed [%s]\n%s\n",
+                Timer::secondsToTimeString(Timer::stop()),
+                $e->getMessage()
+            )
         );
     }
 }
