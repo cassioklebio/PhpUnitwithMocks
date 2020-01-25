@@ -19,4 +19,5 @@ Avaliador (Alura\Leilao\Tests\Domain\Avaliador)
 Encerrador (Alura\Leilao\Tests\Service\Encerrador)
  [x] Lei loes com mais de uma semana de vem ser encerrador
  [x] Deve continuar o processamento ao encontrar erro ao enviar email
+ [x] So deve enviar leilao por email apos finalizado
 
